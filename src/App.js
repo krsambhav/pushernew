@@ -6,6 +6,7 @@ import "./tailwind.min.css";
 import { checkUser } from "./utils";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { Switch } from "@headlessui/react";
 
 function App() {
   const [primaryID, setPrimaryID] = useState("");
@@ -19,10 +20,11 @@ function App() {
   const [lastDate, setLastDate] = useState(
     new Date(new Date().getFullYear(), 5, 10)
   ); // June 10
-  const [reschedule, setReschedule] = useState(0);
+  const [reschedule, setReschedule] = useState("false");
   const [agent, setAgent] = useState("Gujarat");
   const [username, setUsername] = useState("");
-  const [lastConsularDate, setLastConsularDate] = useState(new Date());
+  const [lastConsularDate, setLastConsularDate] = useState(new Date(new Date().setMonth(new Date().getMonth() + 1)));
+  const [gapDays, setGapDays] = useState(0); // Added state for gapDays
 
   const [cities, setCities] = useState({
     all: false,
@@ -177,9 +179,10 @@ function App() {
     const text = await response.text();
     try {
       const ofcCount = text.match(/OFC APPOINTMENT DETAILS/g).length;
-      return ofcCount !== 0;
+      if (ofcCount !== 0) return "true";
+      else return "false";
     } catch (error) {
-      return false;
+      return "false";
     }
   };
 
@@ -187,17 +190,24 @@ function App() {
     const primaryData = await fetchPrimaryID();
     const visaClass = await fetchVisaClass();
     const isReschedule = await checkReschedule();
+    setReschedule(isReschedule)
+    console.log(isReschedule);
     const dependentsIDs = await fetchDependentIDs(
       primaryData.primaryID,
-      isReschedule ? "true" : "false"
+      isReschedule
     );
-
+    console.log(primaryData)
+    console.log(dependentsIDs)
     setUserQty(JSON.parse(dependentsIDs).length);
     setVisaClass(visaClass);
   };
 
   const handlePushUser = async () => {
     const cityArray = Object.keys(cities).filter((city) => cities[city]);
+    const locationArray = cityArray.includes("all")
+      ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+      : cityArray;
+
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
@@ -219,7 +229,7 @@ function App() {
       lastDateInNumbers,
       lastMonth: lastDate.getMonth() + 1,
       lastDate: lastDate.getDate(),
-      location: cityArray,
+      location: locationArray,
       reschedule,
       visaClass,
       sameConsular,
@@ -228,6 +238,7 @@ function App() {
       username,
       lastConsularDate: lastConsularDate.toISOString(),
       lastConsularDateInNumbers,
+      gapDays: parseInt(gapDays, 10), // Ensure gapDays is an integer
     });
 
     const requestOptions = {
@@ -250,6 +261,10 @@ function App() {
 
   const handlePushPriorityUser = async () => {
     const cityArray = Object.keys(cities).filter((city) => cities[city]);
+    const locationArray = cityArray.includes("all")
+      ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+      : cityArray;
+
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
@@ -271,15 +286,17 @@ function App() {
       lastDateInNumbers,
       lastMonth: lastDate.getMonth() + 1,
       lastDate: lastDate.getDate(),
-      location: cityArray,
+      location: locationArray,
       reschedule,
       visaClass,
       sameConsular,
+      isOFCOnly,
       priority: true,
       agent,
       username,
       lastConsularDate: lastConsularDate.toISOString(),
       lastConsularDateInNumbers,
+      gapDays, // Add gapDays to the payload
     });
 
     const requestOptions = {
@@ -309,6 +326,7 @@ function App() {
     setLastDate(new Date(new Date().getFullYear(), 5, 10)); // June 10
     setSameConsular(true);
     setIsOFCOnly(false);
+    setGapDays(0); // Reset gapDays to default value
   };
 
   const handleCityChange = (city) => {
@@ -335,43 +353,31 @@ function App() {
   return (
     <div
       style={{
-        width: "500px",
-        height: "580px",
+        width: "550px",
+        height: "600px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         flexWrap: "wrap",
       }}
     >
-      <div
-        className="primary-name-container shadow-lg px-2 py-1"
-        style={{ marginTop: "30px" }}
-      >
-        <span>User: </span>
+      <div className="primary-name-container bg-white shadow-lg rounded-lg px-4 py-2 mt-6 flex items-end">
         <span id="primary-user-name-span">
           {primaryName !== "" ? primaryName : "John Doe"}
         </span>
-        <br />
-        <span>Total Pax: </span>
-        <span id="primary-user-qty-span">{userQty}</span>
-        <br />
-        <span>Visa Class: </span>
-        <span id="visa-class">{visaClass}</span>
+        &nbsp;
+        <span id="primary-user-qty-span" className="ml-2 text-white bg-blue-500 text-xs py-1 px-2 rounded-full shadow">{userQty}</span>
+        &nbsp;
+        <span id="reschedule-title" className="text-white bg-red-500 text-xs py-1 px-2 rounded-full shadow">{reschedule === "true" ? 'N' : 'R'}</span>
+        &nbsp;
+        <span id="visa-class" className="text-white bg-black text-xs py-1 px-2 rounded-full shadow">{visaClass}</span>
       </div>
-      <div
-        className="primary-dependent-container mt-5"
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "center",
-          gap: "20px",
-        }}
-      >
+      <div className="primary-dependent-container mt-6 flex flex-row justify-center gap-4">
         <div className="primaryID-container">
           <input
             type="text"
             id="primary-id-input"
-            className="shadow-md shadow-lg outline-none px-2 py-1 rounded-sm"
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Primary ID"
             value={primaryID}
             onChange={(e) => setPrimaryID(e.target.value)}
@@ -381,31 +387,35 @@ function App() {
           <input
             type="text"
             id="dependents-id-input"
-            className="shadow-md shadow-lg outline-none px-2 py-1 rounded-sm"
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Dependents IDs"
             value={dependentsIDs}
             onChange={(e) => setDependentsIDs(e.target.value)}
           />
         </div>
       </div>
-      <div className="city-container mt-5 flex flex-row gap-10">
-        <div className="rounded-md px-2 py-1 flex gap-2">
+      <div className="city-container mt-6 flex flex-wrap gap-4">
+        <div className="border border-gray-300 shadow-lg rounded-md px-4 py-2 flex gap-3">
           {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
             (city) => (
-              <label key={city} className="flex gap-2">
+              <label key={city} className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   name="city"
                   value={city}
                   checked={cities[city]}
                   onChange={() => handleCityChange(city)}
+                  className="text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
-                {city.charAt(0).toUpperCase() + city.slice(1)}{" "}
+                <span className="text-gray-700">
+                  {city.charAt(0).toUpperCase() + city.slice(1)}
+                </span>
               </label>
             )
           )}
         </div>
       </div>
+
       <div className="flex flex-row gap-5">
         <div className="same-consular-container mt-5 flex flex-row gap-2 items-center">
           <p>Same Consular?</p>
@@ -426,20 +436,14 @@ function App() {
           />
         </div>
       </div>
-      <div
-        className="agent-username-container mt-5 gap-24"
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "center",
-        }}
-      >
+
+      <div className="agent-username-container mt-6 flex flex-row gap-8 justify-center">
         <div className="agent">
           <p>Agent:</p>
           <select
             value={agent}
             onChange={(e) => setAgent(e.target.value)}
-            className="shadow-md shadow-lg outline-none px-2 py-1 rounded-sm"
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
           >
             <option value="Gujarat">Gujarat</option>
             <option value="Telegram">Telegram</option>
@@ -454,7 +458,7 @@ function App() {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="shadow-md shadow-lg outline-none px-2 py-1 rounded-sm"
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
@@ -472,7 +476,7 @@ function App() {
           <DatePicker
             selected={earliestDate}
             onChange={(date) => setEarliestDate(date)}
-            className="shadow-md shadow-lg outline-none px-2 py-1 rounded-sm"
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div className="date">
@@ -480,19 +484,29 @@ function App() {
           <DatePicker
             selected={lastDate}
             onChange={(date) => setLastDate(date)}
-            className="shadow-md shadow-lg outline-none px-2 py-1 rounded-sm"
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
       <div className="flex flex-row gap-10 mb-2">
-        <div className="res-container mt-5">
+        <div className="hidden-input">
           <p>Reschedule?</p>
           <input
-            type="number"
+            type="text"
             id="res-input"
             value={reschedule}
             onChange={(e) => setReschedule(e.target.value)}
-            className="shadow-md shadow-lg outline-none px-2 py-1 rounded-sm"
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="gap-container mt-5">
+          <p>Gap:</p>
+          <input
+            type="number"
+            id="gap-input"
+            value={gapDays}
+            onChange={(e) => setGapDays(e.target.value)}
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div className="date mt-5">
@@ -500,39 +514,36 @@ function App() {
           <DatePicker
             selected={lastConsularDate}
             onChange={(date) => setLastConsularDate(date)}
-            className="shadow-md shadow-lg outline-none px-2 py-1 rounded-sm"
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
-      <div
-        className="fill-btn flex flex-row gap-3"
-        style={{ marginTop: "20px" }}
-      >
+      <div className="fill-btn flex flex-row gap-4 mt-6">
         <button
           id="fill-btn"
           onClick={handleFill}
-          className="btn bg-blue-700 text-white rounded-md px-2 py-1 shadow-md outline-none"
+          className="btn bg-blue-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-blue-700"
         >
           Fill
         </button>
         <button
           id="push-btn"
           onClick={handlePushUser}
-          className="btn bg-green-800 text-white rounded-md px-2 py-1 shadow-md outline-none"
+          className="btn bg-green-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-green-700"
         >
           Send User Details To DB
         </button>
         <button
           id="push-priority-btn"
           onClick={handlePushPriorityUser}
-          className="btn bg-red-800 text-white rounded-md px-2 py-1 shadow-md outline-none"
+          className="btn bg-red-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-red-700"
         >
           Send As Priority
         </button>
         <button
           id="reset-btn"
           onClick={handleReset}
-          className="btn bg-black text-white rounded-md px-2 py-1 shadow-md outline-none"
+          className="btn bg-gray-800 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-gray-900"
         >
           Reset Dates
         </button>
