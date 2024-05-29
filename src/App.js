@@ -6,7 +6,6 @@ import "./tailwind.min.css";
 import { checkUser } from "./utils";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Switch } from "@headlessui/react";
 
 function App() {
   const [primaryID, setPrimaryID] = useState("");
@@ -23,7 +22,9 @@ function App() {
   const [reschedule, setReschedule] = useState("false");
   const [agent, setAgent] = useState("Gujarat");
   const [username, setUsername] = useState("");
-  const [lastConsularDate, setLastConsularDate] = useState(new Date(new Date().setMonth(new Date().getMonth() + 1)));
+  const [lastConsularDate, setLastConsularDate] = useState(
+    new Date(new Date().setMonth(new Date().getMonth() + 1))
+  );
   const [gapDays, setGapDays] = useState(0); // Added state for gapDays
 
   const [cities, setCities] = useState({
@@ -190,14 +191,14 @@ function App() {
     const primaryData = await fetchPrimaryID();
     const visaClass = await fetchVisaClass();
     const isReschedule = await checkReschedule();
-    setReschedule(isReschedule)
+    setReschedule(isReschedule);
     console.log(isReschedule);
     const dependentsIDs = await fetchDependentIDs(
       primaryData.primaryID,
       isReschedule
     );
-    console.log(primaryData)
-    console.log(dependentsIDs)
+    console.log(primaryData);
+    console.log(dependentsIDs);
     setUserQty(JSON.parse(dependentsIDs).length);
     setVisaClass(visaClass);
   };
@@ -318,10 +319,6 @@ function App() {
   };
 
   const handleReset = () => {
-    const currentMonth = new Date().getMonth() + 1;
-    const currentDate = new Date().getDate();
-    const tempLastMonth = currentDate <= 15 ? currentMonth : currentMonth + 1;
-
     setEarliestDate(new Date());
     setLastDate(new Date(new Date().getFullYear(), 5, 10)); // June 10
     setSameConsular(true);
@@ -366,11 +363,26 @@ function App() {
           {primaryName !== "" ? primaryName : "John Doe"}
         </span>
         &nbsp;
-        <span id="primary-user-qty-span" className="ml-2 text-white bg-blue-500 text-xs py-1 px-2 rounded-full shadow">{userQty}</span>
+        <span
+          id="primary-user-qty-span"
+          className="ml-2 text-white bg-blue-500 text-xs py-1 px-2 rounded-full shadow"
+        >
+          {userQty}
+        </span>
         &nbsp;
-        <span id="reschedule-title" className="text-white bg-red-500 text-xs py-1 px-2 rounded-full shadow">{reschedule === "true" ? 'N' : 'R'}</span>
+        <span
+          id="reschedule-title"
+          className="text-white bg-red-500 text-xs py-1 px-2 rounded-full shadow"
+        >
+          {reschedule === "true" ? "N" : "R"}
+        </span>
         &nbsp;
-        <span id="visa-class" className="text-white bg-black text-xs py-1 px-2 rounded-full shadow">{visaClass}</span>
+        <span
+          id="visa-class"
+          className="text-white bg-black text-xs py-1 px-2 rounded-full shadow"
+        >
+          {visaClass}
+        </span>
       </div>
       <div className="primary-dependent-container mt-6 flex flex-row justify-center gap-4">
         <div className="primaryID-container">
