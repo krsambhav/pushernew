@@ -17,7 +17,7 @@ function App() {
   const [isOFCOnly, setIsOFCOnly] = useState(false);
   const [earliestDate, setEarliestDate] = useState(new Date());
   const [lastDate, setLastDate] = useState(
-    new Date(new Date().getFullYear(), 5, 10)
+    new Date(new Date().getFullYear(), 6, 25)
   ); // June 10
   const [reschedule, setReschedule] = useState("false");
   const [agent, setAgent] = useState("Gujarat");
@@ -249,6 +249,7 @@ function App() {
       redirect: "follow",
     };
     const userExists = await checkUser(primaryID);
+    console.log('Sending')
     if (!userExists) {
       fetch("http://104.192.2.29:3000/users/", requestOptions)
         .then((response) => response.text())
@@ -374,7 +375,7 @@ function App() {
           id="reschedule-title"
           className="text-white bg-red-500 text-xs py-1 px-2 rounded-full shadow"
         >
-          {reschedule === "true" ? "N" : "R"}
+          {reschedule === "true" ? "R" : "N"}
         </span>
         &nbsp;
         <span
