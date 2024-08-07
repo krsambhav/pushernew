@@ -15,9 +15,10 @@ function App() {
   const [userQty, setUserQty] = useState(0);
   const [sameConsular, setSameConsular] = useState(true);
   const [isOFCOnly, setIsOFCOnly] = useState(false);
+  const [isRescheduleLater, setIsRescheduleLater] = useState(false);
   const [earliestDate, setEarliestDate] = useState(new Date());
   const [lastDate, setLastDate] = useState(
-    new Date(new Date().getFullYear(), 6, 25)
+    new Date(new Date().getFullYear(), 7, 31)
   ); // June 10
   const [reschedule, setReschedule] = useState("false");
   const [agent, setAgent] = useState("Gujarat");
@@ -25,6 +26,7 @@ function App() {
   const [lastConsularDate, setLastConsularDate] = useState(
     new Date(new Date().setMonth(new Date().getMonth() + 1))
   );
+  const [isPriority, setIsPriority] = useState(false);
   const [gapDays, setGapDays] = useState(0); // Added state for gapDays
 
   const [cities, setCities] = useState({
@@ -35,6 +37,29 @@ function App() {
     delhi: false,
     hyderabad: false,
   });
+
+  const [consularCities, setConsularCities] = useState({
+    all: false,
+    chennai: false,
+    mumbai: true,
+    kolkata: false,
+    delhi: false,
+    hyderabad: false,
+  });
+
+  useEffect(() => {
+    const gap = parseInt(gapDays, 10);
+    if (!isNaN(gap) && gap >= 0) {
+      const currentDate = new Date();
+      const newEarliestDate = new Date();
+      newEarliestDate.setDate(currentDate.getDate() + gap);
+      setEarliestDate(newEarliestDate);
+    } else {
+      const currentDate = new Date();
+      setEarliestDate(currentDate);
+    }
+  }, [gapDays]);
+  
 
   function generateRandomStringBytes(size) {
     let id = "";
@@ -203,14 +228,71 @@ function App() {
     setVisaClass(visaClass);
   };
 
+  const convertToFirestoreFormat = (user) => {
+    const formattedUser = {
+      fields: {
+        name: { stringValue: user.name },
+        id: { stringValue: user.id },
+        applicantsID: { stringValue: user.applicantsID },
+        pax: { integerValue: user.pax.toString() },
+        earliestMonth: { integerValue: user.earliestMonth.toString() },
+        earliestDate: { integerValue: user.earliestDate.toString() },
+        earliestDateInNumbers: {
+          integerValue: user.earliestDateInNumbers.toString(),
+        },
+        lastDateInNumbers: { integerValue: user.lastDateInNumbers.toString() },
+        lastMonth: { integerValue: user.lastMonth.toString() },
+        lastDate: { integerValue: user.lastDate.toString() },
+        location: {
+          arrayValue: {
+            values: user.location.map((loc) => ({ stringValue: loc })),
+          },
+        },
+        consularLocation: {
+          arrayValue: {
+            values: user.consularLocation.map((loc) => ({ stringValue: loc })),
+          },
+        },
+        reschedule: { stringValue: user.reschedule }, // Change made here
+        visaClass: { stringValue: user.visaClass },
+        sameConsular: { booleanValue: user.sameConsular },
+        isOFCOnly: { booleanValue: user.isOFCOnly },
+        isRescheduleLater: { booleanValue: user.isRescheduleLater },
+        agent: { stringValue: user.agent },
+        username: { stringValue: user.username },
+        lastConsularDate: { timestampValue: user.lastConsularDate },
+        lastConsularDateInNumbers: {
+          integerValue: user.lastConsularDateInNumbers.toString(),
+        },
+        gapDays: { integerValue: user.gapDays.toString() },
+      },
+    };
+    if (user.priority !== undefined) {
+      formattedUser.fields.priority = { booleanValue: user.priority };
+    }
+    return formattedUser;
+  };
+
   const handlePushUser = async () => {
     const cityArray = Object.keys(cities).filter((city) => cities[city]);
     const locationArray = cityArray.includes("all")
       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
       : cityArray;
-
-    const myHeaders = new Headers();
-    myHeaders.append("Content-Type", "application/json");
+    var consularCityArray;
+    var consularLocationArray;
+    if (sameConsular) {
+      consularCityArray = Object.keys(cities).filter((city) => cities[city]);
+      consularLocationArray = cityArray.includes("all")
+        ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+        : cityArray;
+    } else {
+      consularCityArray = Object.keys(consularCities).filter(
+        (city) => consularCities[city]
+      );
+      consularLocationArray = consularCityArray.includes("all")
+        ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+        : consularCityArray;
+    }
 
     const earliestDateInNumbers =
       (earliestDate.getMonth() + 1) * 30 + earliestDate.getDate();
@@ -219,7 +301,7 @@ function App() {
     const lastConsularDateInNumbers =
       (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
 
-    const raw = JSON.stringify({
+    const user = {
       name: primaryName,
       id: primaryID,
       applicantsID: dependentsIDs,
@@ -231,6 +313,7 @@ function App() {
       lastMonth: lastDate.getMonth() + 1,
       lastDate: lastDate.getDate(),
       location: locationArray,
+      consularLocation: consularLocationArray,
       reschedule,
       visaClass,
       sameConsular,
@@ -239,20 +322,26 @@ function App() {
       username,
       lastConsularDate: lastConsularDate.toISOString(),
       lastConsularDateInNumbers,
-      gapDays: parseInt(gapDays, 10), // Ensure gapDays is an integer
-    });
-
-    const requestOptions = {
-      method: "POST",
-      headers: myHeaders,
-      body: raw,
-      redirect: "follow",
+      gapDays: parseInt(gapDays, 10),
+      isRescheduleLater,
+      priority: isPriority
     };
+
+    const firestoreUser = convertToFirestoreFormat(user);
     const userExists = await checkUser(primaryID);
-    console.log('Sending')
+
     if (!userExists) {
-      fetch("http://104.192.2.29:3000/users/", requestOptions)
-        .then((response) => response.text())
+      fetch(
+        `https://firestore.googleapis.com/v1/projects/usa-db-50f2e/databases/(default)/documents/users/${primaryID}?key=AIzaSyDqGqNYoygQhS61HPSnftOKor3z0mJqOkA`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(firestoreUser),
+        }
+      )
+        .then((response) => response.json())
         .then((result) => {
           console.log(result);
           toast.success("Pushed");
@@ -261,67 +350,93 @@ function App() {
     }
   };
 
-  const handlePushPriorityUser = async () => {
-    const cityArray = Object.keys(cities).filter((city) => cities[city]);
-    const locationArray = cityArray.includes("all")
-      ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
-      : cityArray;
+  // const handlePushPriorityUser = async () => {
+  //   const cityArray = Object.keys(cities).filter((city) => cities[city]);
+  //   const locationArray = cityArray.includes("all")
+  //     ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+  //     : cityArray;
+  //   var consularCityArray;
+  //   var consularLocationArray;
+  //   if (sameConsular) {
+  //     consularCityArray = Object.keys(cities).filter((city) => cities[city]);
+  //     consularLocationArray = cityArray.includes("all")
+  //       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+  //       : cityArray;
+  //   } else {
+  //     consularCityArray = Object.keys(consularCities).filter(
+  //       (city) => consularCities[city]
+  //     );
+  //     consularLocationArray = consularCityArray.includes("all")
+  //       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+  //       : consularCityArray;
+  //   }
 
-    const myHeaders = new Headers();
-    myHeaders.append("Content-Type", "application/json");
+  //   const earliestDateInNumbers =
+  //     (earliestDate.getMonth() + 1) * 30 + earliestDate.getDate();
+  //   const lastDateInNumbers =
+  //     (lastDate.getMonth() + 1) * 30 + lastDate.getDate();
+  //   const lastConsularDateInNumbers =
+  //     (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
 
-    const earliestDateInNumbers =
-      (earliestDate.getMonth() + 1) * 30 + earliestDate.getDate();
-    const lastDateInNumbers =
-      (lastDate.getMonth() + 1) * 30 + lastDate.getDate();
-    const lastConsularDateInNumbers =
-      (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
+  //   const user = {
+  //     name: primaryName,
+  //     id: primaryID,
+  //     applicantsID: dependentsIDs,
+  //     pax: userQty,
+  //     earliestMonth: earliestDate.getMonth() + 1,
+  //     earliestDate: earliestDate.getDate(),
+  //     earliestDateInNumbers,
+  //     lastDateInNumbers,
+  //     lastMonth: lastDate.getMonth() + 1,
+  //     lastDate: lastDate.getDate(),
+  //     location: locationArray,
+  //     consularLocation: consularLocationArray,
+  //     reschedule,
+  //     visaClass,
+  //     sameConsular,
+  //     isOFCOnly,
+  //     priority: true,
+  //     agent,
+  //     username,
+  //     lastConsularDate: lastConsularDate.toISOString(),
+  //     lastConsularDateInNumbers,
+  //     gapDays: parseInt(gapDays, 10),
+  //     isRescheduleLater,
+  //   };
 
-    const raw = JSON.stringify({
-      name: primaryName,
-      id: primaryID,
-      applicantsID: dependentsIDs,
-      pax: userQty,
-      earliestMonth: earliestDate.getMonth() + 1,
-      earliestDate: earliestDate.getDate(),
-      earliestDateInNumbers,
-      lastDateInNumbers,
-      lastMonth: lastDate.getMonth() + 1,
-      lastDate: lastDate.getDate(),
-      location: locationArray,
-      reschedule,
-      visaClass,
-      sameConsular,
-      isOFCOnly,
-      priority: true,
-      agent,
-      username,
-      lastConsularDate: lastConsularDate.toISOString(),
-      lastConsularDateInNumbers,
-      gapDays, // Add gapDays to the payload
-    });
+  //   const firestoreUser = convertToFirestoreFormat(user);
+  //   const userExists = await checkUser(primaryID);
 
-    const requestOptions = {
-      method: "POST",
-      headers: myHeaders,
-      body: raw,
-      redirect: "follow",
-    };
-    const userExists = await checkUser(primaryID);
-    if (!userExists) {
-      fetch("http://104.192.2.29:3000/users/", requestOptions)
-        .then((response) => response.text())
-        .then((result) => {
-          console.log(result);
-          toast.success("Pushed");
-        })
-        .catch((error) => console.error(error));
-    }
-  };
+  //   if (!userExists) {
+  //     fetch(
+  //       `https://firestore.googleapis.com/v1/projects/usa-db-50f2e/databases/(default)/documents/users/${primaryID}?key=AIzaSyDqGqNYoygQhS61HPSnftOKor3z0mJqOkA`,
+  //       {
+  //         method: "PATCH",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify(firestoreUser),
+  //       }
+  //     )
+  //       .then((response) => response.json())
+  //       .then((result) => {
+  //         console.log(result);
+  //         toast.success("Pushed");
+  //       })
+  //       .catch((error) => console.error(error));
+  //   }
+  // };
 
   const handleReset = () => {
-    setEarliestDate(new Date());
-    setLastDate(new Date(new Date().getFullYear(), 5, 10)); // June 10
+    const currentDate = new Date();
+    const lastDayOfMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      0
+    );
+
+    setEarliestDate(currentDate);
+    setLastDate(lastDayOfMonth); // Set to the last date of the current month
     setSameConsular(true);
     setIsOFCOnly(false);
     setGapDays(0); // Reset gapDays to default value
@@ -329,6 +444,13 @@ function App() {
 
   const handleCityChange = (city) => {
     setCities((prev) => ({
+      ...prev,
+      [city]: !prev[city],
+      all: city === "all" ? !prev.all : false,
+    }));
+  };
+  const handleConsularCityChange = (city) => {
+    setConsularCities((prev) => ({
       ...prev,
       [city]: !prev[city],
       all: city === "all" ? !prev.all : false,
@@ -348,6 +470,19 @@ function App() {
     }
   }, [cities.all]);
 
+  useEffect(() => {
+    if (consularCities.all) {
+      setConsularCities({
+        all: true,
+        chennai: false,
+        mumbai: false,
+        kolkata: false,
+        delhi: false,
+        hyderabad: false,
+      });
+    }
+  }, [consularCities.all]);
+
   return (
     <div
       style={{
@@ -366,26 +501,52 @@ function App() {
         &nbsp;
         <span
           id="primary-user-qty-span"
-          className="ml-2 text-white bg-blue-500 text-xs py-1 px-2 rounded-full shadow"
+          className={`ml-2 ${
+            userQty === 0 ? "bg-white text-black" : "bg-blue-500 text-white"
+          } text-xs py-1 px-2 rounded-full shadow`}
         >
           {userQty}
         </span>
         &nbsp;
         <span
           id="reschedule-title"
-          className="text-white bg-red-500 text-xs py-1 px-2 rounded-full shadow"
+          className={`${
+            reschedule === "true"
+              ? "text-white bg-red-500"
+              : "text-black bg-white"
+          } text-xs py-1 px-2 rounded-full shadow`}
         >
           {reschedule === "true" ? "R" : "N"}
         </span>
         &nbsp;
         <span
           id="visa-class"
-          className="text-white bg-black text-xs py-1 px-2 rounded-full shadow"
+          className={`${
+            visaClass === "XX" ? "text-black bg-white" : "text-white bg-black"
+          } text-xs py-1 px-2 rounded-full shadow`}
         >
           {visaClass}
         </span>
+        <span
+          id="primary-id-indicator"
+          className={`${
+            primaryID === "" ? "text-black bg-white" : "text-white bg-green-500"
+          } text-xs py-1 px-2 rounded-full shadow ml-1`}
+        >
+          P
+        </span>
+        <span
+          id="dependent-id-indicator"
+          className={`${
+            dependentsIDs === ""
+              ? "text-black bg-white"
+              : "text-white bg-indigo-500"
+          } text-xs py-1 px-2 rounded-full shadow ml-1`}
+        >
+          D
+        </span>
       </div>
-      <div className="primary-dependent-container mt-6 flex flex-row justify-center gap-4">
+      <div className="primary-dependent-container mt-6 flex flex-row justify-center gap-4 hidden">
         <div className="primaryID-container">
           <input
             type="text"
@@ -428,6 +589,52 @@ function App() {
           )}
         </div>
       </div>
+      {sameConsular ? (
+        <div className="city-container mt-6 flex flex-wrap gap-4">
+          <div className="border border-gray-300 shadow-lg rounded-md px-4 py-2 flex gap-3">
+            {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
+              (city) => (
+                <label key={city} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="city"
+                    value={city}
+                    checked={consularCities[city]}
+                    disabled
+                    onChange={() => handleConsularCityChange(city)}
+                    className="text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">
+                    {city.charAt(0).toUpperCase() + city.slice(1)}
+                  </span>
+                </label>
+              )
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="city-container mt-6 flex flex-wrap gap-4">
+          <div className="border border-gray-300 shadow-lg rounded-md px-4 py-2 flex gap-3">
+            {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
+              (city) => (
+                <label key={city} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="city"
+                    value={city}
+                    checked={consularCities[city]}
+                    onChange={() => handleConsularCityChange(city)}
+                    className="text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">
+                    {city.charAt(0).toUpperCase() + city.slice(1)}
+                  </span>
+                </label>
+              )
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-row gap-5">
         <div className="same-consular-container mt-5 flex flex-row gap-2 items-center">
@@ -448,29 +655,67 @@ function App() {
             className="shadow-md border"
           />
         </div>
+        <div className="same-consular-container mt-5 flex flex-row gap-2 items-center">
+          <p>Reschedule Later?</p>
+          <input
+            type="checkbox"
+            checked={isRescheduleLater}
+            onChange={() => setIsRescheduleLater(!isRescheduleLater)}
+            className="shadow-md border"
+          />
+        </div>
       </div>
 
-      <div className="agent-username-container mt-6 flex flex-row gap-8 justify-center">
-        <div className="agent">
-          <p>Agent:</p>
-          <select
-            value={agent}
-            onChange={(e) => setAgent(e.target.value)}
-            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
-          >
-            <option value="Gujarat">Gujarat</option>
-            <option value="Telegram">Telegram</option>
-            <option value="Sushma">Sushma</option>
-            <option value="Hyderabad">Hyderabad</option>
-            <option value="Customer">Customer</option>
-          </select>
+      <div className="agent flex flex-row gap-2 mt-5">
+        <div className="flex space-x-2">
+          {[
+            { name: "Gujarat", color: "red-500" },
+            { name: "Telegram", color: "blue-500" },
+            { name: "Sushma", color: "green-500" },
+            { name: "Hyderabad", color: "black" },
+            { name: "Customer", color: "gray-500" },
+          ].map((agentInfo) => (
+            <button
+              key={agentInfo.name}
+              onClick={() => setAgent(agentInfo.name)}
+              className={`shadow-lg border border-gray-300 rounded-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-10 transition-colors duration-300 ${
+                agent === agentInfo.name
+                  ? `bg-${agentInfo.color} text-white`
+                  : ""
+              }`}
+            >
+              {agentInfo.name[0]}
+            </button>
+          ))}
         </div>
+        <div className="priority-btn-container">
+          <button
+            onClick={() => setIsPriority(!isPriority)}
+            className={`w-10 h-10 rounded-full border border-gray-300 shadow-lg focus:outline-none transition-colors duration-300 ${
+              isPriority ? "bg-red-600 text-white" : "bg-white"
+            }`}
+          >
+            P
+          </button>
+        </div>
+      </div>
+      <div className="agent-username-container mt-6 flex flex-row gap-8 justify-center">
         <div className="username">
           <p>Username:</p>
           <input
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="gap-container">
+          <p>Gap:</p>
+          <input
+            type="number"
+            id="gap-input"
+            value={gapDays}
+            onChange={(e) => setGapDays(e.target.value)}
             className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -512,17 +757,8 @@ function App() {
             className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="gap-container mt-5">
-          <p>Gap:</p>
-          <input
-            type="number"
-            id="gap-input"
-            value={gapDays}
-            onChange={(e) => setGapDays(e.target.value)}
-            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div className="date mt-5">
+
+        <div className="date mt-5 hidden">
           <p>Last Consular Date:</p>
           <DatePicker
             selected={lastConsularDate}
@@ -537,7 +773,7 @@ function App() {
           onClick={handleFill}
           className="btn bg-blue-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-blue-700"
         >
-          Fill
+          Fill Data
         </button>
         <button
           id="push-btn"
@@ -546,17 +782,17 @@ function App() {
         >
           Send User Details To DB
         </button>
-        <button
+        {/* <button
           id="push-priority-btn"
           onClick={handlePushPriorityUser}
           className="btn bg-red-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-red-700"
         >
           Send As Priority
-        </button>
+        </button> */}
         <button
           id="reset-btn"
           onClick={handleReset}
-          className="btn bg-gray-800 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-gray-900"
+          className="btn bg-red-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-gray-900"
         >
           Reset Dates
         </button>
