@@ -23,9 +23,9 @@ function App() {
   const [reschedule, setReschedule] = useState("false");
   const [agent, setAgent] = useState("Gujarat");
   const [username, setUsername] = useState("");
-  const [lastConsularDate, setLastConsularDate] = useState(
-    new Date(new Date().setMonth(new Date().getMonth() + 1))
-  );
+  // const [lastConsularDate, setLastConsularDate] = useState(
+  //   new Date(new Date().setMonth(new Date().getMonth() + 1))
+  // );
   const [isPriority, setIsPriority] = useState(false);
   const [gapDays, setGapDays] = useState(0); // Added state for gapDays
 
@@ -260,10 +260,10 @@ function App() {
         isRescheduleLater: { booleanValue: user.isRescheduleLater },
         agent: { stringValue: user.agent },
         username: { stringValue: user.username },
-        lastConsularDate: { timestampValue: user.lastConsularDate },
-        lastConsularDateInNumbers: {
-          integerValue: user.lastConsularDateInNumbers.toString(),
-        },
+        // lastConsularDate: { timestampValue: user.lastConsularDate },
+        // lastConsularDateInNumbers: {
+        //   integerValue: user.lastConsularDateInNumbers.toString(),
+        // },
         gapDays: { integerValue: user.gapDays.toString() },
       },
     };
@@ -298,8 +298,8 @@ function App() {
       (earliestDate.getMonth() + 1) * 30 + earliestDate.getDate();
     const lastDateInNumbers =
       (lastDate.getMonth() + 1) * 30 + lastDate.getDate();
-    const lastConsularDateInNumbers =
-      (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
+    // const lastConsularDateInNumbers =
+    //   (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
 
     const user = {
       name: primaryName,
@@ -320,8 +320,8 @@ function App() {
       isOFCOnly,
       agent,
       username,
-      lastConsularDate: lastConsularDate.toISOString(),
-      lastConsularDateInNumbers,
+      // lastConsularDate: lastConsularDate.toISOString(),
+      // lastConsularDateInNumbers,
       gapDays: parseInt(gapDays, 10),
       isRescheduleLater,
       priority: isPriority
@@ -754,15 +754,6 @@ function App() {
             id="res-input"
             value={reschedule}
             onChange={(e) => setReschedule(e.target.value)}
-            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="date mt-5 hidden">
-          <p>Last Consular Date:</p>
-          <DatePicker
-            selected={lastConsularDate}
-            onChange={(date) => setLastConsularDate(date)}
             className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
