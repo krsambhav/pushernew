@@ -75,10 +75,18 @@ function App() {
     const name = nameMatch ? nameMatch[1].trim() : null;
     const primaryData = {
       'id': formatID(functionId),
-      'name': name
+      'name': formatName(name)
     }
     return primaryData;
   }
+
+  function formatName(name) {
+    return name
+        .replace(/\s+/g, ' ') // Replace multiple spaces with a single space
+        .trim() // Trim leading and trailing spaces
+        .toLowerCase() // Convert the entire string to lowercase
+        .replace(/\b\w/g, char => char.toUpperCase()); // Capitalize the first letter of each word
+}
 
   function formatID(idWithoutDashes) {
     console.log(idWithoutDashes);
