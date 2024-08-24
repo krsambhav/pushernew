@@ -17,6 +17,8 @@ function App() {
   const [isOFCOnly, setIsOFCOnly] = useState(false);
   const [isRescheduleLater, setIsRescheduleLater] = useState(false);
   const [earliestDate, setEarliestDate] = useState(new Date());
+  const [preferredConsularLocation, setPreferredConsularLocation] =
+    useState("");
   const [lastDate, setLastDate] = useState(
     new Date(new Date().getFullYear(), 7, 31)
   ); // June 10
@@ -52,14 +54,13 @@ function App() {
     if (!isNaN(gap) && gap >= 0) {
       const currentDate = new Date();
       const newEarliestDate = new Date();
-      newEarliestDate.setDate(currentDate.getDate() + gap);
+      newEarliestDate.setDate(currentDate.getDate() + gap + 1);
       setEarliestDate(newEarliestDate);
     } else {
       const currentDate = new Date();
       setEarliestDate(currentDate);
     }
   }, [gapDays]);
-  
 
   function generateRandomStringBytes(size) {
     let id = "";
@@ -265,6 +266,9 @@ function App() {
         //   integerValue: user.lastConsularDateInNumbers.toString(),
         // },
         gapDays: { integerValue: user.gapDays.toString() },
+        preferredConsularLocation: {
+          stringValue: user.preferredConsularLocation,
+        },
       },
     };
     if (user.priority !== undefined) {
@@ -274,6 +278,14 @@ function App() {
   };
 
   const handlePushUser = async () => {
+    if (visaClass !== "B1" && visaClass !== "B2" && visaClass !== "B1/B2") {
+      toast.error("Ineligible Visa Type");
+      return;
+    }
+    if (dependentsIDs === "") {
+      toast.error("Data Incomplete, Can't Push");
+      return;
+    }
     const cityArray = Object.keys(cities).filter((city) => cities[city]);
     const locationArray = cityArray.includes("all")
       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
@@ -298,8 +310,6 @@ function App() {
       (earliestDate.getMonth() + 1) * 30 + earliestDate.getDate();
     const lastDateInNumbers =
       (lastDate.getMonth() + 1) * 30 + lastDate.getDate();
-    // const lastConsularDateInNumbers =
-    //   (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
 
     const user = {
       name: primaryName,
@@ -320,35 +330,120 @@ function App() {
       isOFCOnly,
       agent,
       username,
-      // lastConsularDate: lastConsularDate.toISOString(),
-      // lastConsularDateInNumbers,
       gapDays: parseInt(gapDays, 10),
       isRescheduleLater,
-      priority: isPriority
+      priority: isPriority,
+      preferredConsularLocation,
     };
 
-    const firestoreUser = convertToFirestoreFormat(user);
-    const userExists = await checkUser(primaryID);
+    try {
+      const response = await fetch(`http://104.192.2.29:3000/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(user),
+      });
 
-    if (!userExists) {
-      fetch(
-        `https://firestore.googleapis.com/v1/projects/usa-db-50f2e/databases/(default)/documents/users/${primaryID}?key=AIzaSyDqGqNYoygQhS61HPSnftOKor3z0mJqOkA`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(firestoreUser),
-        }
-      )
-        .then((response) => response.json())
-        .then((result) => {
-          console.log(result);
-          toast.success("Pushed");
-        })
-        .catch((error) => console.error(error));
+      if (response.ok) {
+        const result = await response.json();
+        console.log(result);
+        toast.success("User Pushed Successfully");
+      } else {
+        toast.error("Failed to push user");
+        console.error("Failed to push user, status:", response.status);
+      }
+    } catch (error) {
+      console.error("Error pushing user:", error);
+      toast.error("Error pushing user");
     }
   };
+
+  // const handlePushUser = async () => {
+  //   if (visaClass !== "B1" && visaClass !== "B2" && visaClass !== "B1/B2") {
+  //     toast.error("Ineligible Visa Type");
+  //     return;
+  //   }
+  //   if (dependentsIDs === "") {
+  //     toast.error("Data Incomplete, Can't Push");
+  //     return;
+  //   }
+  //   const cityArray = Object.keys(cities).filter((city) => cities[city]);
+  //   const locationArray = cityArray.includes("all")
+  //     ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+  //     : cityArray;
+  //   var consularCityArray;
+  //   var consularLocationArray;
+  //   if (sameConsular) {
+  //     consularCityArray = Object.keys(cities).filter((city) => cities[city]);
+  //     consularLocationArray = cityArray.includes("all")
+  //       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+  //       : cityArray;
+  //   } else {
+  //     consularCityArray = Object.keys(consularCities).filter(
+  //       (city) => consularCities[city]
+  //     );
+  //     consularLocationArray = consularCityArray.includes("all")
+  //       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
+  //       : consularCityArray;
+  //   }
+
+  //   const earliestDateInNumbers =
+  //     (earliestDate.getMonth() + 1) * 30 + earliestDate.getDate();
+  //   const lastDateInNumbers =
+  //     (lastDate.getMonth() + 1) * 30 + lastDate.getDate();
+  //   // const lastConsularDateInNumbers =
+  //   //   (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
+
+  //   const user = {
+  //     name: primaryName,
+  //     id: primaryID,
+  //     applicantsID: dependentsIDs,
+  //     pax: userQty,
+  //     earliestMonth: earliestDate.getMonth() + 1,
+  //     earliestDate: earliestDate.getDate(),
+  //     earliestDateInNumbers,
+  //     lastDateInNumbers,
+  //     lastMonth: lastDate.getMonth() + 1,
+  //     lastDate: lastDate.getDate(),
+  //     location: locationArray,
+  //     consularLocation: consularLocationArray,
+  //     reschedule,
+  //     visaClass,
+  //     sameConsular,
+  //     isOFCOnly,
+  //     agent,
+  //     username,
+  //     // lastConsularDate: lastConsularDate.toISOString(),
+  //     // lastConsularDateInNumbers,
+  //     gapDays: parseInt(gapDays, 10),
+  //     isRescheduleLater,
+  //     priority: isPriority,
+  //     preferredConsularLocation,
+  //   };
+
+  //   const firestoreUser = convertToFirestoreFormat(user);
+  //   const userExists = false;
+
+  //   if (!userExists) {
+  //     fetch(
+  //       `https://firestore.googleapis.com/v1/projects/usa-db-50f2e/databases/(default)/documents/users/${primaryID}?key=AIzaSyDqGqNYoygQhS61HPSnftOKor3z0mJqOkA`,
+  //       {
+  //         method: "PATCH",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify(firestoreUser),
+  //       }
+  //     )
+  //       .then((response) => response.json())
+  //       .then((result) => {
+  //         console.log(result);
+  //         toast.success("Pushed");
+  //       })
+  //       .catch((error) => console.error(error));
+  //   }
+  // };
 
   // const handlePushPriorityUser = async () => {
   //   const cityArray = Object.keys(cities).filter((city) => cities[city]);
@@ -440,6 +535,13 @@ function App() {
     setSameConsular(true);
     setIsOFCOnly(false);
     setGapDays(0); // Reset gapDays to default value
+  };
+
+  const handleSetPreferredConsularLocation = (location) => {
+    if (preferredConsularLocation === location)
+      setPreferredConsularLocation("");
+    else setPreferredConsularLocation(location);
+    // else
   };
 
   const handleCityChange = (city) => {
@@ -569,70 +671,56 @@ function App() {
         </div>
       </div>
       <div className="city-container mt-6 flex flex-wrap gap-4">
-        <div className="border border-gray-300 shadow-lg rounded-md px-4 py-2 flex gap-3">
-          {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
-            (city) => (
-              <label key={city} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="city"
-                  value={city}
-                  checked={cities[city]}
-                  onChange={() => handleCityChange(city)}
-                  className="text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <span className="text-gray-700">
-                  {city.charAt(0).toUpperCase() + city.slice(1)}
-                </span>
-              </label>
-            )
-          )}
-        </div>
+        {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
+          (city) => (
+            <div
+              key={city}
+              onClick={() => handleCityChange(city)}
+              className={`transition duration-150 rounded-full cursor-pointer px-3 py-2 rounded ${
+                cities[city]
+                  ? "bg-red-500 text-white"
+                  : "bg-white text-gray-700"
+              } border ${cities[city] ? "border-red-500" : "border-gray-300"}`}
+            >
+              <span>{city.charAt(0).toUpperCase() + city.slice(1)}</span>
+            </div>
+          )
+        )}
       </div>
       {sameConsular ? (
         <div className="city-container mt-6 flex flex-wrap gap-4">
-          <div className="border border-gray-300 shadow-lg rounded-md px-4 py-2 flex gap-3">
-            {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
-              (city) => (
-                <label key={city} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="city"
-                    value={city}
-                    checked={consularCities[city]}
-                    disabled
-                    onChange={() => handleConsularCityChange(city)}
-                    className="text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">
-                    {city.charAt(0).toUpperCase() + city.slice(1)}
-                  </span>
-                </label>
-              )
-            )}
-          </div>
+          {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
+            (city) => (
+              <div
+                key={city}
+                className={`text-gray-300 transition duration-150 rounded-full cursor-pointer px-3 py-2 rounded border`}
+                disabled
+                onClick={() => handleConsularCityChange(city)}
+              >
+                <span>{city.charAt(0).toUpperCase() + city.slice(1)}</span>
+              </div>
+            )
+          )}
         </div>
       ) : (
         <div className="city-container mt-6 flex flex-wrap gap-4">
-          <div className="border border-gray-300 shadow-lg rounded-md px-4 py-2 flex gap-3">
-            {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
-              (city) => (
-                <label key={city} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="city"
-                    value={city}
-                    checked={consularCities[city]}
-                    onChange={() => handleConsularCityChange(city)}
-                    className="text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">
-                    {city.charAt(0).toUpperCase() + city.slice(1)}
-                  </span>
-                </label>
-              )
-            )}
-          </div>
+          {["all", "chennai", "mumbai", "kolkata", "delhi", "hyderabad"].map(
+            (city) => (
+              <div
+                key={city}
+                onClick={() => handleConsularCityChange(city)}
+                className={`transition duration-150 rounded-full cursor-pointer px-3 py-2 rounded ${
+                  consularCities[city]
+                    ? "bg-red-500 text-white"
+                    : "bg-white text-gray-700"
+                } border ${
+                  consularCities[city] ? "border-red-500" : "border-gray-300"
+                }`}
+              >
+                <span>{city.charAt(0).toUpperCase() + city.slice(1)}</span>
+              </div>
+            )
+          )}
         </div>
       )}
 
@@ -666,7 +754,7 @@ function App() {
         </div>
       </div>
 
-      <div className="agent flex flex-row gap-2 mt-5">
+      <div className="agent flex flex-row gap-2 mt-5 h-16 items-center">
         <div className="flex space-x-2">
           {[
             { name: "Gujarat", color: "red-500" },
@@ -698,8 +786,50 @@ function App() {
             P
           </button>
         </div>
+        <div className="location-pref-container flex flex-row flex-wrap w-32 gap-2 ml-5">
+          <button
+            onClick={() => handleSetPreferredConsularLocation("mumbai")}
+            className={`w-12 px-2 text-xs h-6 rounded-full border border-gray-300 shadow-lg focus:outline-none transition-colors duration-300 ${
+              preferredConsularLocation === "mumbai"
+                ? "bg-blue-600 text-white"
+                : "bg-white"
+            }`}
+          >
+            BOM
+          </button>
+          <button
+            onClick={() => handleSetPreferredConsularLocation("delhi")}
+            className={`w-12 px-2 text-xs h-6 rounded-full border border-gray-300 shadow-lg focus:outline-none transition-colors duration-300 ${
+              preferredConsularLocation === "delhi"
+                ? "bg-red-600 text-white"
+                : "bg-white"
+            }`}
+          >
+            DEL
+          </button>
+          <button
+            onClick={() => handleSetPreferredConsularLocation("kolkata")}
+            className={`w-12 px-2 text-xs h-6 rounded-full border border-gray-300 shadow-lg focus:outline-none transition-colors duration-300 ${
+              preferredConsularLocation === "kolkata"
+                ? "bg-purple-600 text-white"
+                : "bg-white"
+            }`}
+          >
+            KOL
+          </button>
+          <button
+            onClick={() => handleSetPreferredConsularLocation("hyderabad")}
+            className={`w-12 px-2 text-xs h-6 rounded-full border border-gray-300 shadow-lg focus:outline-none transition-colors duration-300 ${
+              preferredConsularLocation === "hyderabad"
+                ? "bg-green-600 text-white"
+                : "bg-white"
+            }`}
+          >
+            HYD
+          </button>
+        </div>
       </div>
-      <div className="agent-username-container mt-6 flex flex-row gap-8 justify-center">
+      <div className="agent-username-container mt-2 flex flex-row gap-8 justify-center">
         <div className="username">
           <p>Username:</p>
           <input
@@ -711,13 +841,42 @@ function App() {
         </div>
         <div className="gap-container">
           <p>Gap:</p>
-          <input
-            type="number"
-            id="gap-input"
-            value={gapDays}
-            onChange={(e) => setGapDays(e.target.value)}
-            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="flex space-x-2 mt-1">
+            {[0, 1, 2, 3, 4, 5].map((day) => {
+              const getColor = () => {
+                const colors = [
+                  "bg-green-500", // 0
+                  "bg-green-400", // 1
+                  "bg-yellow-300", // 2
+                  "bg-yellow-400", // 3
+                  "bg-orange-500", // 4
+                  "bg-red-500", // 5
+                ];
+                return colors[day];
+              };
+
+              const getTextColor = () => {
+                if (day >= 1 && day <= 3) {
+                  return "text-black";
+                }
+                return "text-white";
+              };
+
+              return (
+                <button
+                  key={day}
+                  onClick={() => setGapDays(day)}
+                  className={`shadow-lg rounded-full border border-gray-300 px-3 transition duration-150 py-1 ${
+                    gapDays === day
+                      ? `${getColor()} ${getTextColor()}`
+                      : "bg-white text-gray-700"
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -762,14 +921,18 @@ function App() {
         <button
           id="fill-btn"
           onClick={handleFill}
-          className="btn bg-blue-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-blue-700"
+          className="btn bg-blue-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-blue-700 transition duration-200"
         >
           Fill Data
         </button>
         <button
           id="push-btn"
           onClick={handlePushUser}
-          className="btn bg-green-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-green-700"
+          className={`btn ${
+            dependentsIDs === ""
+              ? "bg-gray-600"
+              : "bg-green-600 hover:bg-green-700 transition duration-200"
+          } text-white rounded-md px-3 py-2 shadow-md outline-none`}
         >
           Send User Details To DB
         </button>
@@ -783,7 +946,7 @@ function App() {
         <button
           id="reset-btn"
           onClick={handleReset}
-          className="btn bg-red-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-gray-900"
+          className="btn bg-red-600 text-white rounded-md px-3 py-2 shadow-md outline-none hover:bg-red-700 transition duration-200"
         >
           Reset Dates
         </button>
@@ -794,3 +957,4 @@ function App() {
 }
 
 export default App;
+
