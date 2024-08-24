@@ -62,6 +62,82 @@ function App() {
     }
   }, [gapDays]);
 
+  async function fetchPrimaryIDAndName(htmlString) {
+    // Regex to extract the function ID after "showPpn"
+    const idRegex = /function showPpn([a-f0-9]{32})\(/;
+    const idMatch = htmlString.match(idRegex);
+    const functionId = idMatch ? idMatch[1] : null;
+
+    // Regex to extract the name "NARENDRAKUMAR RANMALBHAI ZALA"
+    const nameRegex =
+      /<td style="font-weight:bold;">\s*Appointment\(s\) Made By:\s*<\/td>\s*<td[^>]*>\s*([\w\s]+)\s*<\/td>/;
+    const nameMatch = htmlString.match(nameRegex);
+    const name = nameMatch ? nameMatch[1].trim() : null;
+    const primaryData = {
+      'id': formatID(functionId),
+      'name': name
+    }
+    return primaryData;
+  }
+
+  function formatID(idWithoutDashes) {
+    console.log(idWithoutDashes);
+    if (idWithoutDashes.length !== 32) {
+      throw new Error("ID should be 32 characters long without dashes.");
+    }
+
+    // Insert dashes at the appropriate positions
+    const formattedID = `${idWithoutDashes.slice(0, 8)}-${idWithoutDashes.slice(
+      8,
+      12
+    )}-${idWithoutDashes.slice(12, 16)}-${idWithoutDashes.slice(
+      16,
+      20
+    )}-${idWithoutDashes.slice(20)}`;
+
+    return formattedID;
+  }
+
+  async function fetchAllData() {
+    try {
+      const response = await fetch(
+        "https://www.usvisascheduling.com/en-US/appointment-confirmation/"
+      );
+      const html = await response.text();
+      let tempData =  await fetchPrimaryIDAndName(html);
+      setPrimaryID(tempData['id'])
+      setPrimaryName(tempData['name'])
+      console.log(tempData)
+      try {
+        const ofcCount = html.match(/OFC APPOINTMENT DETAILS/g).length;
+        if (ofcCount !== 0) setReschedule("true");
+        else setReschedule("false");
+        console.log("Reschedule: ", reschedule);
+      } catch (error) {
+        // console.error(error)
+        setReschedule("false");
+      }
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const visaClassLabel = Array.from(doc.querySelectorAll("td")).find(
+        (td) => td.textContent.trim() === "Visa Class:"
+      );
+      if (visaClassLabel && visaClassLabel.nextElementSibling) {
+        const visaClass = visaClassLabel.nextElementSibling.textContent.trim();
+        console.log("Visa Class: ", visaClass);
+        setVisaClass(visaClass);
+      }
+      const dependentsIDs = await fetchDependentIDs(tempData['id'], reschedule);
+      console.log("Dependents: ", dependentsIDs);
+      setDependentsIDs(dependentsIDs);
+      setUserQty(JSON.parse(dependentsIDs).length);
+      console.log("Users: ", userQty);
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  }
+
   function generateRandomStringBytes(size) {
     let id = "";
     for (let i = 0; i < size; i++) {
@@ -214,19 +290,20 @@ function App() {
   };
 
   const handleFill = async () => {
-    const primaryData = await fetchPrimaryID();
-    const visaClass = await fetchVisaClass();
-    const isReschedule = await checkReschedule();
-    setReschedule(isReschedule);
-    console.log(isReschedule);
-    const dependentsIDs = await fetchDependentIDs(
-      primaryData.primaryID,
-      isReschedule
-    );
-    console.log(primaryData);
-    console.log(dependentsIDs);
-    setUserQty(JSON.parse(dependentsIDs).length);
-    setVisaClass(visaClass);
+    // const primaryData = await fetchPrimaryID();
+    // const visaClass = await fetchVisaClass();
+    // const isReschedule = await checkReschedule();
+    // setReschedule(isReschedule);
+    // console.log(isReschedule);
+    // const dependentsIDs = await fetchDependentIDs(
+    //   primaryData.primaryID,
+    //   isReschedule
+    // );
+    // console.log(primaryData);
+    // console.log(dependentsIDs);
+    // setUserQty(JSON.parse(dependentsIDs).length);
+    // setVisaClass(visaClass);
+    await fetchAllData();
   };
 
   const convertToFirestoreFormat = (user) => {
@@ -957,4 +1034,3 @@ function App() {
 }
 
 export default App;
-
