@@ -6,6 +6,8 @@ import "./tailwind.min.css";
 import { checkUser } from "./utils";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { faker } from "@faker-js/faker";
+import HtmlToJsonExtractor from "./HtmlToJsonExtractor";
 
 function App() {
   const [primaryID, setPrimaryID] = useState("");
@@ -13,6 +15,7 @@ function App() {
   const [dependentsIDs, setDependentsIDs] = useState("");
   const [visaClass, setVisaClass] = useState("XX");
   const [userQty, setUserQty] = useState(0);
+  const [UID, setUID] = useState("");
   const [sameConsular, setSameConsular] = useState(true);
   const [isOFCOnly, setIsOFCOnly] = useState(false);
   const [isRescheduleLater, setIsRescheduleLater] = useState(false);
@@ -30,6 +33,7 @@ function App() {
   // );
   const [isPriority, setIsPriority] = useState(false);
   const [gapDays, setGapDays] = useState(0); // Added state for gapDays
+  const [extraData, setExtraData] = useState([]); // Added state for gapDays
 
   const [cities, setCities] = useState({
     all: false,
@@ -62,6 +66,11 @@ function App() {
     }
   }, [gapDays]);
 
+  async function fetchUID(html) {
+    const match = html.match(/<span class="username">[^<]*\((\d+)\)/);
+    return match ? match[1] : null;
+  }
+
   async function fetchPrimaryIDAndName(htmlString) {
     // Regex to extract the function ID after "showPpn"
     const idRegex = /function showPpn([a-f0-9]{32})\(/;
@@ -74,19 +83,19 @@ function App() {
     const nameMatch = htmlString.match(nameRegex);
     const name = nameMatch ? nameMatch[1].trim() : null;
     const primaryData = {
-      'id': formatID(functionId),
-      'name': formatName(name)
-    }
+      id: formatID(functionId),
+      name: formatName(name),
+    };
     return primaryData;
   }
 
   function formatName(name) {
     return name
-        .replace(/\s+/g, ' ') // Replace multiple spaces with a single space
-        .trim() // Trim leading and trailing spaces
-        .toLowerCase() // Convert the entire string to lowercase
-        .replace(/\b\w/g, char => char.toUpperCase()); // Capitalize the first letter of each word
-}
+      .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+      .trim() // Trim leading and trailing spaces
+      .toLowerCase() // Convert the entire string to lowercase
+      .replace(/\b\w/g, (char) => char.toUpperCase()); // Capitalize the first letter of each word
+  }
 
   function formatID(idWithoutDashes) {
     console.log(idWithoutDashes);
@@ -112,10 +121,17 @@ function App() {
         "https://www.usvisascheduling.com/en-US/appointment-confirmation/"
       );
       const html = await response.text();
-      let tempData =  await fetchPrimaryIDAndName(html);
-      setPrimaryID(tempData['id'])
-      setPrimaryName(tempData['name'])
-      console.log(tempData)
+      let uid = await fetchUID(html);
+      setUID(uid);
+      console.log(uid);
+      // console.log('Extra: ', extraData)
+      let tempData = await fetchPrimaryIDAndName(html);
+      setPrimaryID(tempData["id"]);
+      setPrimaryName(tempData["name"]);
+      let tempExtraData = HtmlToJsonExtractor(html);
+      tempExtraData[0]['id'] = tempData["id"];
+      setExtraData(tempExtraData)
+      console.log(tempData);
       try {
         const ofcCount = html.match(/OFC APPOINTMENT DETAILS/g).length;
         if (ofcCount !== 0) setReschedule("true");
@@ -135,11 +151,11 @@ function App() {
         console.log("Visa Class: ", visaClass);
         setVisaClass(visaClass);
       }
-      const dependentsIDs = await fetchDependentIDs(tempData['id'], reschedule);
+      const dependentsIDs = await fetchDependentIDs(tempData["id"], reschedule);
       console.log("Dependents: ", dependentsIDs);
       setDependentsIDs(dependentsIDs);
-      setUserQty(JSON.parse(dependentsIDs).length);
-      console.log("Users: ", userQty);
+      setUserQty(JSON.parse(dependentsIDs).length || 1);
+      // console.log("Users: ", userQty);
     } catch (error) {
       console.error(error);
       return null;
@@ -252,7 +268,7 @@ function App() {
     const data = await response.json();
     const membersArr = data["Members"];
     const dependentIDsArr = [];
-    if (membersArr.length === 0) return primaryID;
+    if (membersArr.length === 0) dependentIDsArr.push(primaryID);
     membersArr.forEach((member) => {
       dependentIDsArr.push(member["ApplicationID"]);
     });
@@ -363,10 +379,10 @@ function App() {
   };
 
   const handlePushUser = async () => {
-    if (visaClass !== "B1" && visaClass !== "B2" && visaClass !== "B1/B2") {
-      toast.error("Ineligible Visa Type");
-      return;
-    }
+    // if (visaClass !== "B1" && visaClass !== "B2" && visaClass !== "B1/B2") {
+    //   toast.error("Ineligible Visa Type");
+    //   return;
+    // }
     if (dependentsIDs === "") {
       toast.error("Data Incomplete, Can't Push");
       return;
@@ -398,6 +414,7 @@ function App() {
 
     const user = {
       name: primaryName,
+      uid: UID,
       id: primaryID,
       applicantsID: dependentsIDs,
       pax: userQty,
@@ -422,6 +439,13 @@ function App() {
     };
 
     try {
+      const response0 = await fetch(`http://104.219.238.10:3000/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(extraData),
+      });
       const response = await fetch(`http://104.192.2.29:3000/users`, {
         method: "POST",
         headers: {
@@ -683,7 +707,7 @@ function App() {
     >
       <div className="primary-name-container bg-white shadow-lg rounded-lg px-4 py-2 mt-6 flex items-end">
         <span id="primary-user-name-span">
-          {primaryName !== "" ? primaryName : "John Doe"}
+          {primaryName !== "" ? primaryName : faker.person.fullName()}
         </span>
         &nbsp;
         <span
@@ -810,32 +834,30 @@ function App() {
       )}
 
       <div className="flex flex-row gap-5">
-        <div className="same-consular-container mt-5 flex flex-row gap-2 items-center">
-          <p>Same Consular?</p>
-          <input
-            type="checkbox"
-            checked={sameConsular}
-            onChange={() => setSameConsular(!sameConsular)}
-            className="shadow-md border"
-          />
+        <div
+          className={`same-consular-container px-5 transition duration-200 mt-5 rounded-full p-2 flex flex-row gap-2 items-center ${
+            sameConsular ? "bg-green-200 shadow-lg" : ""
+          }`}
+          onClick={() => setSameConsular(!sameConsular)}
+        >
+          <p className="select-none">Same Consular?</p>
         </div>
-        <div className="same-consular-container mt-5 flex flex-row gap-2 items-center">
-          <p>OFC Only?</p>
-          <input
-            type="checkbox"
-            checked={isOFCOnly}
-            onChange={() => setIsOFCOnly(!isOFCOnly)}
-            className="shadow-md border"
-          />
+        <div
+          className={`same-consular-container px-5 transition duration-200 mt-5 rounded-full p-2 flex flex-row gap-2 items-center ${
+            isOFCOnly ? "bg-red-200 shadow-lg" : ""
+          }`}
+          onClick={() => setIsOFCOnly(!isOFCOnly)}
+        >
+          <p className="select-none">OFC Only?</p>
         </div>
-        <div className="same-consular-container mt-5 flex flex-row gap-2 items-center">
-          <p>Reschedule Later?</p>
-          <input
-            type="checkbox"
-            checked={isRescheduleLater}
-            onChange={() => setIsRescheduleLater(!isRescheduleLater)}
-            className="shadow-md border"
-          />
+
+        <div
+          className={`same-consular-container px-5 transition duration-200 mt-5 rounded-full p-2 flex flex-row gap-2 items-center ${
+            isRescheduleLater ? "bg-blue-200 shadow-lg" : ""
+          }`}
+          onClick={() => setIsRescheduleLater(!isRescheduleLater)}
+        >
+          <p className="select-none">Reschedule Later?</p>
         </div>
       </div>
 
@@ -914,18 +936,17 @@ function App() {
           </button>
         </div>
       </div>
-      <div className="agent-username-container mt-2 flex flex-row gap-8 justify-center">
+      <div className="agent-username-container mt-5 flex flex-row gap-8 justify-center">
         <div className="username">
-          <p>Username:</p>
           <input
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
             className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div className="gap-container">
-          <p>Gap:</p>
           <div className="flex space-x-2 mt-1">
             {[0, 1, 2, 3, 4, 5].map((day) => {
               const getColor = () => {
@@ -974,7 +995,7 @@ function App() {
         }}
       >
         <div className="date">
-          <p>Earliest Date:</p>
+          {/* <p>From</p> */}
           <DatePicker
             selected={earliestDate}
             onChange={(date) => setEarliestDate(date)}
@@ -982,7 +1003,7 @@ function App() {
           />
         </div>
         <div className="date">
-          <p>Last Date:</p>
+          {/* <p>To</p> */}
           <DatePicker
             selected={lastDate}
             onChange={(date) => setLastDate(date)}
