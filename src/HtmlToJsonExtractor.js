@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React from "react";
 import { load } from "cheerio";
+import PdfGenerator from "./PdfGenerator"; // Assuming PdfGenerator is in the same directory
 
 const HtmlToJsonExtractor = (html) => {
   let jsonData;
-  console.log(html);
+
   const handleExtractJson = (html) => {
     const extractApplicantDataFromHTML = (html) => {
       const $ = load(html);
@@ -11,25 +12,18 @@ const HtmlToJsonExtractor = (html) => {
       const applicants = [];
 
       // Regex to extract all UIDs from barcode URLs
-      const uidRegex =
-        /https:\/\/barcodes\.cgiatlas\.com\/barcode\/code128\/(\d+)/g;
+      const uidRegex = /https:\/\/barcodes\.cgiatlas\.com\/barcode\/code128\/(\d+)/g;
       const uids = [];
       let match;
-      // Make sure to extract all matches by resetting the regex state properly
       while ((match = uidRegex.exec(html)) !== null) {
         uids.push(match[1]);
       }
 
-      console.log("Extracted UIDs:", uids); // Debugging output to check UIDs
-
-      // Extract the number of applicants
       const numberOfApplicants = parseInt(
-        cleanText(
-          $('tr:contains("Number of Applicants") td:nth-child(2)').text().trim()
-        )
+        cleanText($('tr:contains("Number of Applicants") td:nth-child(2)').text().trim())
       );
+      const applicantSize = parseInt(numberOfApplicants);
 
-      // Function to extract individual applicant details
       const extractApplicant = (section, index) => {
         const passportRaw = cleanText(
           $(section)
@@ -44,7 +38,7 @@ const HtmlToJsonExtractor = (html) => {
           : passportRaw.split(" ")[0];
 
         return {
-          uid: uids[index * 1] || "", // 1st match for 1st applicant, 3rd match for 2nd applicant, etc.
+          uid: uids[index * 1] || "",
           name:
             cleanText(
               $(section)
@@ -61,9 +55,7 @@ const HtmlToJsonExtractor = (html) => {
           passport: passport,
           ds160: cleanText(
             $(section)
-              .find(
-                'tr:contains("DS-160 Confirmation Number:") td:nth-child(2)'
-              )
+              .find('tr:contains("DS-160 Confirmation Number:") td:nth-child(2)')
               .text()
               .trim()
           ),
@@ -126,25 +118,25 @@ const HtmlToJsonExtractor = (html) => {
         number: (index + 1).toString(),
         location: cleanText(
           $('tr:contains("Embassy/Consulate/OFC") td:nth-child(2)')
-            .first()
+            .eq(applicantSize)
             .text()
             .trim()
         ),
         address1: cleanText(
-          $('tr:contains("Street Address") td:nth-child(2)')
-            .first()
+          $('tr:contains("Street Address:") td:nth-child(2)')
+            .eq(applicantSize)
             .text()
             .trim()
         ),
         address2: cleanText(
           $('tr:contains("Street Address Cont.") td:nth-child(2)')
-            .first()
+            .eq(applicantSize)
             .text()
             .trim()
         ),
         city: cleanText(
           $('tr:contains("City, Postal Code") td:nth-child(2)')
-            .first()
+            .eq(applicantSize)
             .text()
             .trim()
         ),
@@ -164,10 +156,7 @@ const HtmlToJsonExtractor = (html) => {
             .trim()
         ),
         locationName: cleanText(
-          $('tr:contains("Location Name") td:nth-child(2)')
-            .first()
-            .text()
-            .trim()
+          $('tr:contains("Location Name") td:nth-child(2)').first().text().trim()
         ),
         address1: cleanText(
           $('tr:contains("Address 1") td:nth-child(2)').first().text().trim()
@@ -176,19 +165,16 @@ const HtmlToJsonExtractor = (html) => {
           $('tr:contains("Address 2") td:nth-child(2)').first().text().trim()
         ),
         city: cleanText(
-          $('tr:contains("City") td:nth-child(2)').first().text().trim()
+          $('tr:contains("City:") td:nth-child(2)').first().text().trim()
         ),
         postalCode: cleanText(
-          $('tr:contains("Postal Code") td:nth-child(2)').first().text().trim()
+          $('tr:contains("Postal Code:") td:nth-child(2)').eq(applicantSize * 2).text().trim()
         ),
       };
 
       const mrvFeeDetails = {
         receipt: cleanText(
-          $('tr:contains("Receipt Number") td:nth-child(2)')
-            .first()
-            .text()
-            .trim()
+          $('tr:contains("Receipt Number") td:nth-child(2)').first().text().trim()
         ),
         amount: cleanText(
           $('tr:contains("Amount") td:nth-child(2)').first().text().trim()
@@ -200,14 +186,12 @@ const HtmlToJsonExtractor = (html) => {
         let applicant;
 
         if (i === 0) {
-          // Primary Applicant details extraction
           const primarySection = $('h2:contains("PRIMARY APPLICANT DETAILS")')
             .next()
             .next()
             .find("table.section");
           applicant = extractApplicant(primarySection, i);
         } else {
-          // Family/Group Member details extraction
           const familySection = $('h2:contains("FAMILY/GROUP MEMBERS")')
             .next()
             .next()
@@ -216,13 +200,12 @@ const HtmlToJsonExtractor = (html) => {
           applicant = extractApplicant(familySection, i);
         }
 
-        // Assign the extracted details
         applicant.ofcAppointment = ofcAppointmentDetails(i);
         applicant.consularAppointment = consularAppointmentDetails(i);
         applicant.delivery = deliveryDetails;
         applicant.mrvFee = {
           ...mrvFeeDetails,
-          receipt: mrvFeeDetails.receipt.replace(/-(\d+)$/, `-${i + 1}`), // Adjust the receipt number here
+          receipt: mrvFeeDetails.receipt.replace(/-(\d+)$/, `-${i + 1}`),
         };
 
         applicants.push(applicant);
@@ -233,6 +216,7 @@ const HtmlToJsonExtractor = (html) => {
 
     jsonData = extractApplicantDataFromHTML(html);
   };
+
   handleExtractJson(html);
   console.log(jsonData);
   return jsonData;
