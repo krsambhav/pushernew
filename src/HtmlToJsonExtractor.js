@@ -1,6 +1,6 @@
 import React from "react";
 import { load } from "cheerio";
-import PdfGenerator from "./PdfGenerator"; // Assuming PdfGenerator is in the same directory
+// import PdfGenerator from "./PdfGenerator"; // Assuming PdfGenerator is in the same directory
 
 const HtmlToJsonExtractor = (html) => {
   let jsonData;
