@@ -108,10 +108,11 @@ const HtmlToJsonExtractor = (html) => {
         );
         deliveryDetails.postalCode = cleanText(
           $('tr:contains("Postal Code:") td:nth-child(2)')
-            .eq(numberOfApplicants * 2)
+            .last()
             .text()
             .trim()
         );
+        
       } else if (deliveryDetails.type === "Premium Delivery") {
         deliveryDetails.street = cleanText(
           $('tr:contains("Mailing Street:") td:nth-child(2)')
