@@ -134,9 +134,9 @@ const HtmlToJsonExtractor = (html) => {
         );
         deliveryDetails.postalCode = cleanText(
           $('tr:contains("Mailing Postal Code:") td:nth-child(2)')
-            .eq(0)
-            .text()
-            .trim()
+          .last()
+          .text()
+          .trim()
         );
       }
 
