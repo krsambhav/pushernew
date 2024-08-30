@@ -34,6 +34,7 @@ function App() {
   const [isPriority, setIsPriority] = useState(false);
   const [gapDays, setGapDays] = useState(0); // Added state for gapDays
   const [extraData, setExtraData] = useState([]); // Added state for gapDays
+  let ofcCount;
 
   const [cities, setCities] = useState({
     all: false,
@@ -133,13 +134,16 @@ function App() {
       setExtraData(tempExtraData)
       console.log(tempData);
       try {
-        const ofcCount = html.match(/OFC APPOINTMENT DETAILS/g).length;
-        if (ofcCount !== 0) setReschedule("true");
+        ofcCount = html.match(/OFC APPOINTMENT DETAILS/g).length;
+        // console.log(html)
+        console.log(ofcCount)
+        if (ofcCount != 0) setReschedule("true");
         else setReschedule("false");
         console.log("Reschedule: ", reschedule);
       } catch (error) {
-        // console.error(error)
+        console.error(error)
         setReschedule("false");
+        ofcCount = 0;
       }
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
@@ -151,6 +155,7 @@ function App() {
         console.log("Visa Class: ", visaClass);
         setVisaClass(visaClass);
       }
+      console.log(reschedule, ofcCount)
       const dependentsIDs = await fetchDependentIDs(tempData["id"], reschedule);
       console.log("Dependents: ", dependentsIDs);
       setDependentsIDs(dependentsIDs);
@@ -236,7 +241,7 @@ function App() {
   const fetchDependentIDs = async (primaryID, isReschedule) => {
     const now = Date.now();
     let url = `https://www.usvisascheduling.com/en-US/custom-actions/?route=/api/v1/schedule-group/query-family-members-ofc&cacheString=${now}`;
-    if (isReschedule === "true") {
+    if (ofcCount !== 0) {
       url = `https://www.usvisascheduling.com/en-US/custom-actions/?route=/api/v1/schedule-group/query-family-members-ofc-reschedule&cacheString=${now}`;
     }
     const response = await fetch(url, {
@@ -266,7 +271,9 @@ function App() {
       credentials: "include",
     });
     const data = await response.json();
+    console.log(data)
     const membersArr = data["Members"];
+    console.log(membersArr)
     const dependentIDsArr = [];
     if (membersArr.length === 0) dependentIDsArr.push(primaryID);
     membersArr.forEach((member) => {

@@ -152,9 +152,9 @@ const HtmlToJsonExtractor = (html) => {
         ),
       };
 
+      console.log('Pax: ', numberOfApplicants)
       for (let i = 0; i < numberOfApplicants; i++) {
         let applicant;
-
         if (i === 0) {
           const primarySection = $('h2:contains("PRIMARY APPLICANT DETAILS")')
             .next()
@@ -163,10 +163,10 @@ const HtmlToJsonExtractor = (html) => {
           applicant = extractApplicant(primarySection, i);
         } else {
           const familySection = $('h2:contains("FAMILY/GROUP MEMBERS")')
-            .next()
-            .next()
-            .find("table.section")
-            .eq(i - 1);
+          .nextAll('div')
+          .find('table.section')
+          .toArray()[i-1]        
+          console.log(familySection)
           applicant = extractApplicant(familySection, i);
         }
 
