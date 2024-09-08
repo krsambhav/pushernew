@@ -1024,10 +1024,11 @@ function App() {
         <div className="date">
           {/* <p>To</p> */}
           <DatePicker
-            selected={lastDate}
-            onChange={(date) => setLastDate(date)}
-            className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+  selected={lastDate}
+  onChange={(date) => setLastDate(date)}
+  className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+  minDate={earliestDate} // Disable dates earlier than earliestDate
+/>
         </div>
       </div>
       <div className="flex flex-row gap-10 mb-2">
