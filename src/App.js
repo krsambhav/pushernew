@@ -401,6 +401,11 @@ function App() {
       toast.error("Data Incomplete, Can't Push");
       return;
     }
+    const checkResponse = await fetch(`http://104.192.2.29:3000/users/${primaryID}`);
+    if (checkResponse.ok) {
+      toast.error("User Already Exists");
+      return;
+    }
     const cityArray = Object.keys(cities).filter((city) => cities[city]);
     const locationArray = cityArray.includes("all")
       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
