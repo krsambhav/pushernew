@@ -23,7 +23,7 @@ function App() {
   const [preferredConsularLocation, setPreferredConsularLocation] =
     useState("");
   const [lastDate, setLastDate] = useState(
-    new Date(new Date().getFullYear(), 7, 31)
+    new Date(new Date().getFullYear(), 8, 30)
   ); // June 10
   const [reschedule, setReschedule] = useState("false");
   const [agent, setAgent] = useState("Gujarat");
@@ -134,14 +134,21 @@ function App() {
       setExtraData(tempExtraData)
       console.log(tempData);
       try {
-        ofcCount = html.match(/OFC APPOINTMENT DETAILS/g).length;
+        ofcCount = html.match(/OFC APPOINTMENT DETAILS/g).length || 0;
         // console.log(html)
         console.log(ofcCount)
-        if (ofcCount != 0) setReschedule("true");
+        if (ofcCount != 0) {
+          let consularCount = html.match(/CONSULAR APPOINTMENT DETAILS/g) || [];
+          if (consularCount.length === 0) {
+            toast.error('Locked OFC Detected')
+            return;
+          }
+          setReschedule("true");
+        }
         else setReschedule("false");
         console.log("Reschedule: ", reschedule);
       } catch (error) {
-        console.error(error)
+        // console.error(error)
         setReschedule("false");
         ofcCount = 0;
       }
@@ -152,10 +159,10 @@ function App() {
       );
       if (visaClassLabel && visaClassLabel.nextElementSibling) {
         const visaClass = visaClassLabel.nextElementSibling.textContent.trim();
-        console.log("Visa Class: ", visaClass);
+        // console.log("Visa Class: ", visaClass);
         setVisaClass(visaClass);
       }
-      console.log(reschedule, ofcCount)
+      // console.log(reschedule, ofcCount)
       const dependentsIDs = await fetchDependentIDs(tempData["id"], reschedule);
       console.log("Dependents: ", dependentsIDs);
       setDependentsIDs(dependentsIDs);
@@ -271,7 +278,7 @@ function App() {
       credentials: "include",
     });
     const data = await response.json();
-    console.log(data)
+    // console.log(data)
     const membersArr = data["Members"];
     console.log(membersArr)
     const dependentIDsArr = [];

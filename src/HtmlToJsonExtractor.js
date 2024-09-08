@@ -28,13 +28,18 @@ const HtmlToJsonExtractor = (html) => {
           $(section)
             .find('td:contains("Passport Number:")')
             .next()
-            .find("div")
+            .find("script")
             .text()
             .trim()
         );
-        const passport = passportRaw.includes("****")
-          ? passportRaw
-          : passportRaw.split(" ")[0];
+        const passportRegex = /\b([A-Z0-9]{6,9})\b/;
+      
+        // Extracting passport number
+        const passport = passportRaw.match(passportRegex)[0];
+        
+        // const passport = passportRaw.includes("****")
+        //   ? passportRaw
+        //   : passportRaw.split(" ")[0];
 
         return {
           uid: uids[index * 1] || "",
