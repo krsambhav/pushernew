@@ -67,6 +67,29 @@ function App() {
     }
   }, [gapDays]);
 
+  useEffect(() => {
+    const currentDate = new Date(earliestDate);
+    let newLastDate;
+    
+    if (currentDate.getDate() <= 10) {
+      newLastDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    } else {
+      newLastDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 25);
+    }
+    
+    setLastDate(newLastDate);
+  }, [earliestDate]);
+
+  const setLastDateCurrentMonth = () => {
+    const currentDate = new Date(earliestDate);
+    setLastDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0));
+  };
+
+  const setLastDateNextMonth = () => {
+    const currentDate = new Date(earliestDate);
+    setLastDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 25));
+  };
+
   async function fetchUID(html) {
     const match = html.match(/<span class="username">[^<]*\((\d+)\)/);
     return match ? match[1] : null;
@@ -130,22 +153,21 @@ function App() {
       setPrimaryID(tempData["id"]);
       setPrimaryName(tempData["name"]);
       let tempExtraData = HtmlToJsonExtractor(html);
-      tempExtraData[0]['id'] = tempData["id"];
-      setExtraData(tempExtraData)
+      tempExtraData[0]["id"] = tempData["id"];
+      setExtraData(tempExtraData);
       console.log(tempData);
       try {
         ofcCount = html.match(/OFC APPOINTMENT DETAILS/g).length || 0;
         // console.log(html)
-        console.log(ofcCount)
+        console.log(ofcCount);
         if (ofcCount != 0) {
           let consularCount = html.match(/CONSULAR APPOINTMENT DETAILS/g) || [];
           if (consularCount.length === 0) {
-            toast.error('Locked OFC Detected')
+            toast.error("Locked OFC Detected");
             return;
           }
           setReschedule("true");
-        }
-        else setReschedule("false");
+        } else setReschedule("false");
         console.log("Reschedule: ", reschedule);
       } catch (error) {
         // console.error(error)
@@ -280,7 +302,7 @@ function App() {
     const data = await response.json();
     // console.log(data)
     const membersArr = data["Members"];
-    console.log(membersArr)
+    console.log(membersArr);
     const dependentIDsArr = [];
     if (membersArr.length === 0) dependentIDsArr.push(primaryID);
     membersArr.forEach((member) => {
@@ -401,9 +423,18 @@ function App() {
       toast.error("Data Incomplete, Can't Push");
       return;
     }
-    const checkResponse = await fetch(`http://104.192.2.29:3000/users/${primaryID}`);
+    const checkResponse = await fetch(
+      `http://104.192.2.29:3000/users/${primaryID}`
+    );
     if (checkResponse.ok) {
       toast.error("User Already Exists");
+      return;
+    }
+    const checkAlreadyDone = await fetch(
+      `http://172.81.131.195:3000/stats/${primaryID}`
+    );
+    if (checkAlreadyDone.ok) {
+      toast.error("User Already Booked");
       return;
     }
     const cityArray = Object.keys(cities).filter((city) => cities[city]);
@@ -1027,7 +1058,8 @@ function App() {
   selected={lastDate}
   onChange={(date) => setLastDate(date)}
   className="shadow-lg border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-  minDate={earliestDate} // Disable dates earlier than earliestDate
+  minDate={earliestDate}
+  openToDate={earliestDate > new Date() ? earliestDate : undefined}
 />
         </div>
       </div>
@@ -1043,7 +1075,21 @@ function App() {
           />
         </div>
       </div>
-      <div className="fill-btn flex flex-row gap-4 mt-6">
+      <div className="flex flex-row gap-4 mt-3">
+      <button
+        onClick={setLastDateCurrentMonth}
+        className="btn bg-blue-500 text-white rounded-md px-3 py-1 shadow-md outline-none hover:bg-blue-600 transition duration-200"
+      >
+        Set Current Month
+      </button>
+      <button
+        onClick={setLastDateNextMonth}
+        className="btn bg-blue-600 text-white rounded-md px-3 py-1 shadow-md outline-none hover:bg-green-600 transition duration-200"
+      >
+        Set Next Month
+      </button>
+    </div>
+      <div className="fill-btn flex flex-row gap-4 mt-4">
         <button
           id="fill-btn"
           onClick={handleFill}
