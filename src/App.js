@@ -17,9 +17,10 @@ function App() {
   const [userQty, setUserQty] = useState(0);
   const [UID, setUID] = useState("");
   const [sameConsular, setSameConsular] = useState(true);
-  const [isOFCOnly, setIsOFCOnly] = useState(false);
+  const [isOFCOnly, setIsOFCOnly] = useState(true);
   const [isRescheduleLater, setIsRescheduleLater] = useState(false);
   const [earliestDate, setEarliestDate] = useState(new Date());
+  const [forceLockedOFC, setForceLockedOFC] = useState(false);
   const [preferredConsularLocation, setPreferredConsularLocation] =
     useState("");
   const [lastDate, setLastDate] = useState(
@@ -28,6 +29,7 @@ function App() {
   const [reschedule, setReschedule] = useState("false");
   const [agent, setAgent] = useState("Gujarat");
   const [username, setUsername] = useState("");
+  const [contactId, setContactId] = useState("");
   // const [lastConsularDate, setLastConsularDate] = useState(
   //   new Date(new Date().setMonth(new Date().getMonth() + 1))
   // );
@@ -162,17 +164,32 @@ function App() {
         console.log(ofcCount);
         if (ofcCount != 0) {
           let consularCount = html.match(/CONSULAR APPOINTMENT DETAILS/g) || [];
-          if (consularCount.length === 0) {
-            toast.error("Locked OFC Detected");
-            return;
+          if (!forceLockedOFC) {
+            if (consularCount.length === 0) {
+              toast.error("Locked OFC Detected");
+              setForceLockedOFC(true);
+              return;
+            }
           }
           setReschedule("true");
         } else setReschedule("false");
         console.log("Reschedule: ", reschedule);
+        
       } catch (error) {
         // console.error(error)
         setReschedule("false");
         ofcCount = 0;
+      }
+      try {
+        var cidmatch = html.match(/contactId:\s*'([a-f0-9-]+)'/);
+    
+        if (cidmatch) {
+          setContactId(cidmatch[1]);
+          console.log('Contact ID', contactId);
+          console.log('Contact ID', cidmatch[1]);
+        }
+      } catch (error) {
+        console.error(error);
       }
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
@@ -312,42 +329,7 @@ function App() {
     return JSON.stringify(dependentIDsArr);
   };
 
-  const fetchVisaClass = async () => {
-    try {
-      const response = await fetch(
-        "https://www.usvisascheduling.com/en-US/appointment-confirmation/"
-      );
-      const html = await response.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const visaClassLabel = Array.from(doc.querySelectorAll("td")).find(
-        (td) => td.textContent.trim() === "Visa Class:"
-      );
-      if (visaClassLabel && visaClassLabel.nextElementSibling) {
-        const visaClass = visaClassLabel.nextElementSibling.textContent.trim();
-        setVisaClass(visaClass);
-        return visaClass;
-      }
-      throw new Error("Visa class not found");
-    } catch (error) {
-      console.error("Failed to fetch visa class:", error);
-      return null;
-    }
-  };
 
-  const checkReschedule = async () => {
-    const response = await fetch(
-      "https://www.usvisascheduling.com/en-US/appointment-confirmation/"
-    );
-    const text = await response.text();
-    try {
-      const ofcCount = text.match(/OFC APPOINTMENT DETAILS/g).length;
-      if (ofcCount !== 0) return "true";
-      else return "false";
-    } catch (error) {
-      return "false";
-    }
-  };
 
   const handleFill = async () => {
     // const primaryData = await fetchPrimaryID();
@@ -366,54 +348,6 @@ function App() {
     await fetchAllData();
   };
 
-  const convertToFirestoreFormat = (user) => {
-    const formattedUser = {
-      fields: {
-        name: { stringValue: user.name },
-        id: { stringValue: user.id },
-        applicantsID: { stringValue: user.applicantsID },
-        pax: { integerValue: user.pax.toString() },
-        earliestMonth: { integerValue: user.earliestMonth.toString() },
-        earliestDate: { integerValue: user.earliestDate.toString() },
-        earliestDateInNumbers: {
-          integerValue: user.earliestDateInNumbers.toString(),
-        },
-        lastDateInNumbers: { integerValue: user.lastDateInNumbers.toString() },
-        lastMonth: { integerValue: user.lastMonth.toString() },
-        lastDate: { integerValue: user.lastDate.toString() },
-        location: {
-          arrayValue: {
-            values: user.location.map((loc) => ({ stringValue: loc })),
-          },
-        },
-        consularLocation: {
-          arrayValue: {
-            values: user.consularLocation.map((loc) => ({ stringValue: loc })),
-          },
-        },
-        reschedule: { stringValue: user.reschedule }, // Change made here
-        visaClass: { stringValue: user.visaClass },
-        sameConsular: { booleanValue: user.sameConsular },
-        isOFCOnly: { booleanValue: user.isOFCOnly },
-        isRescheduleLater: { booleanValue: user.isRescheduleLater },
-        agent: { stringValue: user.agent },
-        username: { stringValue: user.username },
-        // lastConsularDate: { timestampValue: user.lastConsularDate },
-        // lastConsularDateInNumbers: {
-        //   integerValue: user.lastConsularDateInNumbers.toString(),
-        // },
-        gapDays: { integerValue: user.gapDays.toString() },
-        preferredConsularLocation: {
-          stringValue: user.preferredConsularLocation,
-        },
-      },
-    };
-    if (user.priority !== undefined) {
-      formattedUser.fields.priority = { booleanValue: user.priority };
-    }
-    return formattedUser;
-  };
-
   const handlePushUser = async () => {
     // if (visaClass !== "B1" && visaClass !== "B2" && visaClass !== "B1/B2") {
     //   toast.error("Ineligible Visa Type");
@@ -423,16 +357,16 @@ function App() {
       toast.error("Data Incomplete, Can't Push");
       return;
     }
-    const checkResponse = await fetch(
-      `http://104.192.2.29:3000/users/${primaryID}`
-    );
+    const [checkResponse, checkAlreadyDone] = await Promise.all([
+      fetch(`http://104.192.2.29:3000/users/${primaryID}`),
+      fetch(`http://172.81.131.195:3000/stats/${primaryID}`)
+    ]);
+    
     if (checkResponse.ok) {
       toast.error("User Already Exists");
       return;
     }
-    const checkAlreadyDone = await fetch(
-      `http://172.81.131.195:3000/stats/${primaryID}`
-    );
+    
     if (checkAlreadyDone.ok) {
       toast.error("User Already Booked");
       return;
@@ -486,6 +420,7 @@ function App() {
       isRescheduleLater,
       priority: isPriority,
       preferredConsularLocation,
+      contactId
     };
 
     try {
@@ -517,169 +452,6 @@ function App() {
       toast.error("Error pushing user");
     }
   };
-
-  // const handlePushUser = async () => {
-  //   if (visaClass !== "B1" && visaClass !== "B2" && visaClass !== "B1/B2") {
-  //     toast.error("Ineligible Visa Type");
-  //     return;
-  //   }
-  //   if (dependentsIDs === "") {
-  //     toast.error("Data Incomplete, Can't Push");
-  //     return;
-  //   }
-  //   const cityArray = Object.keys(cities).filter((city) => cities[city]);
-  //   const locationArray = cityArray.includes("all")
-  //     ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
-  //     : cityArray;
-  //   var consularCityArray;
-  //   var consularLocationArray;
-  //   if (sameConsular) {
-  //     consularCityArray = Object.keys(cities).filter((city) => cities[city]);
-  //     consularLocationArray = cityArray.includes("all")
-  //       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
-  //       : cityArray;
-  //   } else {
-  //     consularCityArray = Object.keys(consularCities).filter(
-  //       (city) => consularCities[city]
-  //     );
-  //     consularLocationArray = consularCityArray.includes("all")
-  //       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
-  //       : consularCityArray;
-  //   }
-
-  //   const earliestDateInNumbers =
-  //     (earliestDate.getMonth() + 1) * 30 + earliestDate.getDate();
-  //   const lastDateInNumbers =
-  //     (lastDate.getMonth() + 1) * 30 + lastDate.getDate();
-  //   // const lastConsularDateInNumbers =
-  //   //   (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
-
-  //   const user = {
-  //     name: primaryName,
-  //     id: primaryID,
-  //     applicantsID: dependentsIDs,
-  //     pax: userQty,
-  //     earliestMonth: earliestDate.getMonth() + 1,
-  //     earliestDate: earliestDate.getDate(),
-  //     earliestDateInNumbers,
-  //     lastDateInNumbers,
-  //     lastMonth: lastDate.getMonth() + 1,
-  //     lastDate: lastDate.getDate(),
-  //     location: locationArray,
-  //     consularLocation: consularLocationArray,
-  //     reschedule,
-  //     visaClass,
-  //     sameConsular,
-  //     isOFCOnly,
-  //     agent,
-  //     username,
-  //     // lastConsularDate: lastConsularDate.toISOString(),
-  //     // lastConsularDateInNumbers,
-  //     gapDays: parseInt(gapDays, 10),
-  //     isRescheduleLater,
-  //     priority: isPriority,
-  //     preferredConsularLocation,
-  //   };
-
-  //   const firestoreUser = convertToFirestoreFormat(user);
-  //   const userExists = false;
-
-  //   if (!userExists) {
-  //     fetch(
-  //       `https://firestore.googleapis.com/v1/projects/usa-db-50f2e/databases/(default)/documents/users/${primaryID}?key=AIzaSyDqGqNYoygQhS61HPSnftOKor3z0mJqOkA`,
-  //       {
-  //         method: "PATCH",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //         },
-  //         body: JSON.stringify(firestoreUser),
-  //       }
-  //     )
-  //       .then((response) => response.json())
-  //       .then((result) => {
-  //         console.log(result);
-  //         toast.success("Pushed");
-  //       })
-  //       .catch((error) => console.error(error));
-  //   }
-  // };
-
-  // const handlePushPriorityUser = async () => {
-  //   const cityArray = Object.keys(cities).filter((city) => cities[city]);
-  //   const locationArray = cityArray.includes("all")
-  //     ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
-  //     : cityArray;
-  //   var consularCityArray;
-  //   var consularLocationArray;
-  //   if (sameConsular) {
-  //     consularCityArray = Object.keys(cities).filter((city) => cities[city]);
-  //     consularLocationArray = cityArray.includes("all")
-  //       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
-  //       : cityArray;
-  //   } else {
-  //     consularCityArray = Object.keys(consularCities).filter(
-  //       (city) => consularCities[city]
-  //     );
-  //     consularLocationArray = consularCityArray.includes("all")
-  //       ? ["chennai", "mumbai", "kolkata", "delhi", "hyderabad"]
-  //       : consularCityArray;
-  //   }
-
-  //   const earliestDateInNumbers =
-  //     (earliestDate.getMonth() + 1) * 30 + earliestDate.getDate();
-  //   const lastDateInNumbers =
-  //     (lastDate.getMonth() + 1) * 30 + lastDate.getDate();
-  //   const lastConsularDateInNumbers =
-  //     (lastConsularDate.getMonth() + 1) * 30 + lastConsularDate.getDate();
-
-  //   const user = {
-  //     name: primaryName,
-  //     id: primaryID,
-  //     applicantsID: dependentsIDs,
-  //     pax: userQty,
-  //     earliestMonth: earliestDate.getMonth() + 1,
-  //     earliestDate: earliestDate.getDate(),
-  //     earliestDateInNumbers,
-  //     lastDateInNumbers,
-  //     lastMonth: lastDate.getMonth() + 1,
-  //     lastDate: lastDate.getDate(),
-  //     location: locationArray,
-  //     consularLocation: consularLocationArray,
-  //     reschedule,
-  //     visaClass,
-  //     sameConsular,
-  //     isOFCOnly,
-  //     priority: true,
-  //     agent,
-  //     username,
-  //     lastConsularDate: lastConsularDate.toISOString(),
-  //     lastConsularDateInNumbers,
-  //     gapDays: parseInt(gapDays, 10),
-  //     isRescheduleLater,
-  //   };
-
-  //   const firestoreUser = convertToFirestoreFormat(user);
-  //   const userExists = await checkUser(primaryID);
-
-  //   if (!userExists) {
-  //     fetch(
-  //       `https://firestore.googleapis.com/v1/projects/usa-db-50f2e/databases/(default)/documents/users/${primaryID}?key=AIzaSyDqGqNYoygQhS61HPSnftOKor3z0mJqOkA`,
-  //       {
-  //         method: "PATCH",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //         },
-  //         body: JSON.stringify(firestoreUser),
-  //       }
-  //     )
-  //       .then((response) => response.json())
-  //       .then((result) => {
-  //         console.log(result);
-  //         toast.success("Pushed");
-  //       })
-  //       .catch((error) => console.error(error));
-  //   }
-  // };
 
   const handleReset = () => {
     const currentDate = new Date();
